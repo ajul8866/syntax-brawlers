@@ -327,18 +327,23 @@ class Game:
 
             # Update AI controllers
             for i, ai in enumerate(self.ai_controllers):
-                if ai and self.fighters:
-                    action = ai.get_action(
-                        self.fighters[i],
-                        self.fighters[1 - i],
-                        self.round_timer
-                    )
-                    if action:
-                        self.fighters[i].execute_action(action)
+                if ai:
+                    # Update AI cooldowns
+                    ai.update(dt)
 
-            # Update fighters
-            for fighter in self.fighters:
-                fighter.update(dt)
+                    if self.fighters:
+                        action = ai.get_action(
+                            self.fighters[i],
+                            self.fighters[1 - i],
+                            self.round_timer
+                        )
+                        if action:
+                            self.fighters[i].execute_action(action)
+
+            # Update fighters - pass opponent for proper facing
+            if len(self.fighters) >= 2:
+                self.fighters[0].update(dt, self.fighters[1])
+                self.fighters[1].update(dt, self.fighters[0])
 
             # Update combat
             if self.combat_engine:

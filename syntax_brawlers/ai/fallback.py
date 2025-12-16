@@ -5,7 +5,6 @@ AI lokal yang digunakan ketika LLM tidak tersedia.
 Berbasis rule dan weighted random.
 """
 
-import random
 from typing import Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 import sys
@@ -75,9 +74,9 @@ class FallbackAI:
 
         self._last_action = action
 
-        # Get trash talk
+        # Get trash talk (deterministic - every 5th decision)
         trash_talk = ""
-        if random.random() < self.personality.traits.trash_talk_freq:
+        if self._consecutive_same == 0:  # First action of new type
             trash_talk = self.personality.get_trash_talk()
 
         return FallbackDecision(
@@ -111,7 +110,10 @@ class FallbackAI:
 
         # DISTANCE BASED
         if distance == 'far':
-            return (ActionType.IDLE, "Closing distance", 0.7)
+            # Agresif maju, atau jab untuk approach
+            if my_stamina >= 8 and random.random() < 0.7:
+                return (ActionType.JAB, "Approaching with jab", 0.7)
+            return (ActionType.JAB, "Closing distance", 0.6)
 
         if distance == 'clinch':
             return self._clinch_action(my_stamina)
@@ -127,15 +129,15 @@ class FallbackAI:
 
     def _respond_to_attack(self, opp_action: str, stamina: float,
                            distance: str) -> Tuple[ActionType, str, float]:
-        """Respond to incoming attack"""
-        # Heavy attack - block or dodge
+        """Respond to incoming attack - deterministic"""
+        # Heavy attack - dodge if possible
         if opp_action in ['HOOK', 'UPPERCUT']:
-            if stamina >= 15 and random.random() < 0.6:
+            if stamina >= 15:
                 return (ActionType.DODGE, "Evading heavy attack", 0.8)
             elif stamina >= 12:
                 return (ActionType.BLOCK, "Blocking heavy attack", 0.85)
 
-        # Light attack - can counter
+        # Light attack - counter with jab
         if stamina >= 8 and self.personality.traits.aggression > 0.5:
             return (ActionType.JAB, "Counter jab", 0.7)
 
@@ -143,7 +145,7 @@ class FallbackAI:
         if stamina >= 12:
             return (ActionType.BLOCK, "Blocking", 0.8)
 
-        return (ActionType.IDLE, "Bracing", 0.5)
+        return (ActionType.JAB, "Trading", 0.5)
 
     def _desperate_mode(self, stamina: float, opp_health: float,
                         distance: str) -> Tuple[ActionType, str, float]:
@@ -177,52 +179,41 @@ class FallbackAI:
         return (ActionType.IDLE, "Waiting to finish", 0.6)
 
     def _clinch_action(self, stamina: float) -> Tuple[ActionType, str, float]:
-        """Action in clinch range"""
-        roll = random.random()
-
-        if stamina >= 35 and roll < 0.3:
+        """Action in clinch range - deterministic"""
+        # Prioritas: uppercut > hook > jab berdasarkan stamina
+        if stamina >= 35:
             return (ActionType.UPPERCUT, "Clinch uppercut", 0.7)
-        if stamina >= 28 and roll < 0.5:
+        if stamina >= 28:
             return (ActionType.HOOK, "Short hook", 0.75)
         if stamina >= 8:
             return (ActionType.JAB, "Body jab", 0.8)
 
-        return (ActionType.IDLE, "Creating space", 0.6)
+        return (ActionType.JAB, "Quick jab", 0.6)
 
     def _punch_range_action(self, my_stamina: float,
                             opp_stamina: float) -> Tuple[ActionType, str, float]:
-        """Action in punch range"""
-        # Use personality weights
-        weights = self.personality.get_action_weights({
-            'my_stamina': my_stamina,
-            'opp_stamina': opp_stamina,
-            'distance': 'punch'
-        })
-
-        # Combo logic
+        """Action in punch range - deterministic combo system"""
+        # Combo logic: JAB -> CROSS -> HOOK
         if self._last_action == ActionType.JAB and my_stamina >= 18:
-            if random.random() < 0.7:
-                self._combo_sequence.append(ActionType.CROSS)
-                return (ActionType.CROSS, "Jab-Cross combo", 0.8)
+            self._combo_sequence.append(ActionType.CROSS)
+            return (ActionType.CROSS, "Jab-Cross combo", 0.8)
 
-        if len(self._combo_sequence) >= 2 and my_stamina >= 28:
-            if random.random() < 0.5:
-                return (ActionType.HOOK, "Combo finisher", 0.75)
+        if self._last_action == ActionType.CROSS and my_stamina >= 28:
+            self._combo_sequence.append(ActionType.HOOK)
+            return (ActionType.HOOK, "Combo finisher", 0.75)
 
-        # Weighted random
-        action = self.personality.choose_action({
-            'my_stamina': my_stamina,
-            'distance': 'punch'
-        })
+        # Start combo with jab
+        if my_stamina >= 8:
+            return (ActionType.JAB, "Starting combo", 0.7)
 
-        return (action, "In range attack", 0.7)
+        return (ActionType.JAB, "In range attack", 0.7)
 
     def _medium_range_action(self, stamina: float) -> Tuple[ActionType, str, float]:
-        """Action in medium range"""
-        if stamina >= 8 and random.random() < 0.6:
+        """Action in medium range - deterministic"""
+        if stamina >= 8:
             return (ActionType.JAB, "Range finder jab", 0.75)
 
-        return (ActionType.IDLE, "Positioning", 0.6)
+        return (ActionType.JAB, "Closing in", 0.6)
 
     def _default_action(self, stamina: float) -> Tuple[ActionType, str, float]:
         """Default action"""
@@ -231,27 +222,26 @@ class FallbackAI:
 
     def _get_alternative_action(self, current: ActionType,
                                  stamina: float) -> ActionType:
-        """Get different action to avoid repetition"""
-        alternatives = [
-            ActionType.JAB, ActionType.CROSS, ActionType.HOOK,
-            ActionType.BLOCK, ActionType.DODGE, ActionType.IDLE
-        ]
+        """Get different action to avoid repetition - deterministic"""
+        # Cycle through actions: JAB -> CROSS -> HOOK -> JAB
+        cycle = {
+            ActionType.JAB: ActionType.CROSS,
+            ActionType.CROSS: ActionType.HOOK,
+            ActionType.HOOK: ActionType.JAB,
+            ActionType.BLOCK: ActionType.JAB,
+            ActionType.DODGE: ActionType.JAB,
+            ActionType.IDLE: ActionType.JAB,
+        }
 
-        # Remove current
-        if current in alternatives:
-            alternatives.remove(current)
+        next_action = cycle.get(current, ActionType.JAB)
 
-        # Filter by stamina
-        valid = []
-        for action in alternatives:
-            action_data = ACTION_DATA.get(action)
-            if action_data and stamina >= action_data.stamina_cost:
-                valid.append(action)
+        # Check stamina
+        action_data = ACTION_DATA.get(next_action)
+        if action_data and stamina >= action_data.stamina_cost:
+            return next_action
 
-        if valid:
-            return random.choice(valid)
-
-        return ActionType.IDLE
+        # Default to jab (lowest cost)
+        return ActionType.JAB
 
     def reset(self):
         """Reset state"""

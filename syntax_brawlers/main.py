@@ -90,11 +90,18 @@ def main():
 
     game.set_fighters(fighter1, fighter2)
 
-    # Buat AI controllers (menggunakan FallbackAI untuk sekarang)
-    print("Inisialisasi AI...")
-    ai1 = AIController(fighter1, llm_provider=None, personality='aggressive')
-    ai2 = AIController(fighter2, llm_provider=None, personality='defensive')
+    # Buat AI controllers dengan LLM
+    print("Inisialisasi AI dengan LLM...")
+    from ai.providers.openrouter import OpenRouterProvider
+
+    # OpenRouter API dengan DeepSeek
+    api_key = os.environ.get('OPENROUTER_API_KEY', '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')
+    llm_provider = OpenRouterProvider(api_key=api_key)
+
+    ai1 = AIController(fighter1, llm_provider=llm_provider, personality='aggressive')
+    ai2 = AIController(fighter2, llm_provider=llm_provider, personality='defensive')
     game.set_ai_controllers(ai1, ai2)
+    print(f"LLM Provider: OpenRouter (DeepSeek)")
 
     # Set initial state
     game.state_machine.transition_to(GameState.MAIN_MENU)

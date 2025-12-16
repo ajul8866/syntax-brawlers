@@ -63,7 +63,7 @@ class AIController:
     def get_action(self, fighter, opponent, round_time: float) -> Optional[ActionType]:
         """
         Synchronous action getter.
-        Uses cached decision or fallback.
+        Tries LLM sync, falls back if unavailable.
         """
         if not fighter.can_act:
             return None
@@ -74,13 +74,38 @@ class AIController:
         # Build game state
         game_state = self._build_game_state(fighter, opponent, round_time)
 
-        # Use fallback for immediate decision
+        # Try LLM sync if provider available
+        if self.llm_provider and hasattr(self.llm_provider, 'get_action_sync'):
+            try:
+                response = self.llm_provider.get_action_sync(
+                    game_state,
+                    self.personality.get_description()
+                )
+
+                if response and not response.error:
+                    self._last_llm_response = response
+                    self.decisions_made += 1
+                    self.llm_decisions += 1
+                    self._decision_cooldown = self._min_decision_interval
+
+                    # Update personality based on decision
+                    self.personality.update_state('decision', response.action)
+
+                    action = self._convert_action_string(response.action)
+                    print(f"[{fighter.name}] LLM: {response.action} - {response.reasoning}")
+                    return action
+
+            except Exception as e:
+                print(f"[{fighter.name}] LLM Error: {e}")
+
+        # Fallback - deterministic based on situation
         decision = self.fallback.get_action(game_state)
 
         self._decision_cooldown = self._min_decision_interval
         self.decisions_made += 1
         self.fallback_decisions += 1
 
+        print(f"[{fighter.name}] Fallback: {decision.action.value} - {decision.reasoning}")
         return self._convert_action(decision.action)
 
     async def get_action_async(self, fighter, opponent,

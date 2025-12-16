@@ -214,6 +214,38 @@ class OpenRouterProvider(BaseLLMProvider):
         """Clear response cache"""
         self._response_cache.clear()
 
+    def get_action_sync(self, game_state: Dict[str, Any],
+                        personality: str) -> LLMResponse:
+        """Synchronous version of get_action"""
+        try:
+            # Run async in event loop
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(self.get_action(game_state, personality))
+            finally:
+                loop.close()
+        except Exception as e:
+            return LLMResponse(
+                action='JAB',  # Default action instead of IDLE
+                reasoning=f"Sync error: {e}",
+                trash_talk="",
+                confidence=0.5,
+                error=str(e)
+            )
+
+    def check_availability_sync(self) -> bool:
+        """Synchronous version of check_availability"""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(self.check_availability())
+            finally:
+                loop.close()
+        except:
+            return False
+
 
 # Convenience function untuk quick setup
 def create_openrouter_provider(api_key: str = "",
