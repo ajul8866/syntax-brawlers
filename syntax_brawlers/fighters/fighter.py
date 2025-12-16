@@ -90,6 +90,23 @@ class Fighter:
         self._on_block_callback: Optional[Callable] = None
         self._on_dodge_callback: Optional[Callable] = None
 
+    # Position properties untuk kemudahan akses
+    @property
+    def x(self) -> float:
+        return self.movement.x
+
+    @x.setter
+    def x(self, value: float):
+        self.movement.x = value
+
+    @property
+    def y(self) -> float:
+        return self.movement.y
+
+    @y.setter
+    def y(self, value: float):
+        self.movement.y = value
+
     def update(self, dt: float, opponent: Optional['Fighter'] = None):
         """Update fighter per frame"""
         # Update movement
