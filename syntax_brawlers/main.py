@@ -95,7 +95,7 @@ def main():
     from ai.providers.openrouter import OpenRouterProvider
 
     # OpenRouter API - MUST set OPENROUTER_API_KEY environment variable
-    api_key = os.environ.get('OPENROUTER_API_KEY', '')
+    api_key = os.environ.get('OPENROUTER_API_KEY', '').strip().strip('"').strip("'")
     if not api_key:
         print("=" * 60)
         print("ERROR: OPENROUTER_API_KEY not set!")
