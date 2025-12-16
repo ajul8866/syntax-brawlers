@@ -36,15 +36,15 @@ class Camera:
     """
 
     def __init__(self):
-        # Position (center of view)
-        self.x = RING_CENTER_X
-        self.y = RING_CENTER_Y
+        # Position (center of view) - FIXED at screen center
+        self.x = SCREEN_WIDTH // 2
+        self.y = SCREEN_HEIGHT // 2
 
         # Target (untuk smooth follow)
         self.target_x = self.x
         self.target_y = self.y
 
-        # Zoom
+        # Zoom - FIXED at 1.0
         self.zoom = 1.0
         self.target_zoom = 1.0
         self.zoom_speed = 2.0
@@ -54,19 +54,19 @@ class Camera:
         self.shake_offset_x = 0.0
         self.shake_offset_y = 0.0
 
-        # Smoothing
-        self.smoothing = CAMERA_SMOOTHING
+        # Smoothing - very slow
+        self.smoothing = 0.02
 
-        # Bounds
+        # Bounds - disabled
         self.bounds = CameraBounds(
-            min_x=RING_LEFT + SCREEN_WIDTH // 4,
-            max_x=RING_RIGHT - SCREEN_WIDTH // 4,
-            min_y=200,
-            max_y=400
+            min_x=0,
+            max_x=SCREEN_WIDTH,
+            min_y=0,
+            max_y=SCREEN_HEIGHT
         )
 
-        # Mode
-        self.mode = 'follow'  # follow, fixed, cinematic
+        # Mode - FIXED by default
+        self.mode = 'fixed'  # follow, fixed, cinematic
 
         # Cinematic
         self._cinematic_timer = 0
@@ -177,13 +177,9 @@ class Camera:
         Get offset untuk rendering.
         Semua objek di-render dengan offset ini.
         """
-        # Calculate offset dari center screen
-        offset_x = SCREEN_WIDTH // 2 - self.x * self.zoom
-        offset_y = SCREEN_HEIGHT // 2 - self.y * self.zoom
-
-        # Add shake
-        offset_x += self.shake_offset_x
-        offset_y += self.shake_offset_y
+        # FIXED camera - no offset, just shake
+        offset_x = self.shake_offset_x
+        offset_y = self.shake_offset_y
 
         return (offset_x, offset_y)
 
@@ -191,8 +187,9 @@ class Camera:
         """Convert world coordinates ke screen coordinates"""
         offset_x, offset_y = self.get_offset()
 
-        screen_x = int((world_x * self.zoom) + offset_x)
-        screen_y = int((world_y * self.zoom) + offset_y)
+        # FIXED camera - world = screen (just add shake offset)
+        screen_x = int(world_x + offset_x)
+        screen_y = int(world_y + offset_y)
 
         return (screen_x, screen_y)
 
@@ -200,8 +197,9 @@ class Camera:
         """Convert screen coordinates ke world coordinates"""
         offset_x, offset_y = self.get_offset()
 
-        world_x = (screen_x - offset_x) / self.zoom
-        world_y = (screen_y - offset_y) / self.zoom
+        # FIXED camera - screen = world
+        world_x = float(screen_x - offset_x)
+        world_y = float(screen_y - offset_y)
 
         return (world_x, world_y)
 
