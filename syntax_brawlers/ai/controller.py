@@ -12,7 +12,6 @@ sys.path.insert(0, '..')
 
 from config import ActionType, LLM_TIMEOUT
 from ai.providers.base import BaseLLMProvider, LLMResponse
-from ai.fallback import FallbackAI, FallbackDecision
 from ai.personality import PersonalityManager
 
 
@@ -38,22 +37,20 @@ class AIController:
         self.llm_provider = llm_provider
         self.personality_name = personality
         self.personality = PersonalityManager(personality)
-        self.fallback = FallbackAI(personality)
 
         # State
         self._pending_decision: Optional[AIDecision] = None
         self._decision_cooldown = 0.0
-        self._min_decision_interval = 0.3  # 300ms between decisions
+        self._min_decision_interval = 0.5  # 500ms between LLM calls
 
         # LLM state
+        self._last_llm_response: Optional[LLMResponse] = None
         self._llm_available = False
         self._llm_check_cooldown = 0.0
-        self._last_llm_response: Optional[LLMResponse] = None
 
         # Stats
         self.decisions_made = 0
         self.llm_decisions = 0
-        self.fallback_decisions = 0
 
     async def initialize(self):
         """Initialize controller (check LLM availability)"""
@@ -62,8 +59,7 @@ class AIController:
 
     def get_action(self, fighter, opponent, round_time: float) -> Optional[ActionType]:
         """
-        Synchronous action getter.
-        Tries LLM sync, falls back if unavailable.
+        Synchronous action getter - ONLY uses LLM, no fallback.
         """
         if not fighter.can_act:
             return None
@@ -74,7 +70,7 @@ class AIController:
         # Build game state
         game_state = self._build_game_state(fighter, opponent, round_time)
 
-        # Try LLM sync if provider available
+        # ONLY use LLM - no fallback
         if self.llm_provider and hasattr(self.llm_provider, 'get_action_sync'):
             try:
                 response = self.llm_provider.get_action_sync(
@@ -82,37 +78,26 @@ class AIController:
                     self.personality.get_description()
                 )
 
-                if response and not response.error:
+                self._decision_cooldown = self._min_decision_interval
+                self.decisions_made += 1
+                self.llm_decisions += 1
+
+                if response:
                     self._last_llm_response = response
-                    self.decisions_made += 1
-                    self.llm_decisions += 1
-                    self._decision_cooldown = self._min_decision_interval
-
-                    # Update personality based on decision
-                    self.personality.update_state('decision', response.action)
-
                     action = self._convert_action_string(response.action)
                     print(f"[{fighter.name}] LLM: {response.action} - {response.reasoning}")
                     return action
 
             except Exception as e:
                 print(f"[{fighter.name}] LLM Error: {e}")
+                self._decision_cooldown = 0.5  # Wait before retry
 
-        # Fallback - deterministic based on situation
-        decision = self.fallback.get_action(game_state)
-
-        self._decision_cooldown = self._min_decision_interval
-        self.decisions_made += 1
-        self.fallback_decisions += 1
-
-        print(f"[{fighter.name}] Fallback: {decision.action.value} - {decision.reasoning}")
-        return self._convert_action(decision.action)
+        return None  # No action if LLM fails - NO FALLBACK
 
     async def get_action_async(self, fighter, opponent,
                                round_time: float) -> Optional[ActionType]:
         """
-        Async action getter.
-        Tries LLM first, falls back if unavailable/timeout.
+        Async action getter - ONLY uses LLM, no fallback.
         """
         if not fighter.can_act:
             return None
@@ -124,8 +109,8 @@ class AIController:
         # Build game state
         game_state = self._build_game_state(fighter, opponent, round_time)
 
-        # Try LLM if available
-        if self._llm_available and self.llm_provider:
+        # ONLY use LLM - no fallback
+        if self.llm_provider:
             try:
                 response = await asyncio.wait_for(
                     self.llm_provider.get_action(game_state,
@@ -133,32 +118,25 @@ class AIController:
                     timeout=LLM_TIMEOUT
                 )
 
-                if response and not response.error:
+                self._decision_cooldown = self._min_decision_interval
+                self.decisions_made += 1
+                self.llm_decisions += 1
+
+                if response:
                     self._last_llm_response = response
-                    self.decisions_made += 1
-                    self.llm_decisions += 1
-                    self._decision_cooldown = self._min_decision_interval
-
-                    # Update personality based on decision
-                    self.personality.update_state('decision', response.action)
-
-                    return self._convert_action_string(response.action)
+                    action = self._convert_action_string(response.action)
+                    print(f"[{fighter.name}] LLM: {response.action} - {response.reasoning}")
+                    return action
 
             except asyncio.TimeoutError:
-                self._llm_available = False
-                self._llm_check_cooldown = 30.0  # Retry after 30s
+                print(f"[{fighter.name}] LLM Timeout - retrying...")
+                self._decision_cooldown = 0.5
 
             except Exception as e:
-                print(f"LLM error: {e}")
-                self._llm_available = False
+                print(f"[{fighter.name}] LLM Error: {e}")
+                self._decision_cooldown = 0.5
 
-        # Fallback
-        decision = self.fallback.get_action(game_state)
-        self.decisions_made += 1
-        self.fallback_decisions += 1
-        self._decision_cooldown = self._min_decision_interval
-
-        return self._convert_action(decision.action)
+        return None  # No action if LLM fails - NO FALLBACK
 
     def _build_game_state(self, fighter, opponent, round_time: float) -> Dict[str, Any]:
         """Build game state dict untuk AI"""
@@ -249,7 +227,6 @@ class AIController:
         """Reset untuk round/match baru"""
         self._pending_decision = None
         self._decision_cooldown = 0
-        self.fallback.reset()
         self.personality.reset()
 
     def get_stats(self) -> Dict[str, Any]:
@@ -257,8 +234,6 @@ class AIController:
         return {
             'decisions_made': self.decisions_made,
             'llm_decisions': self.llm_decisions,
-            'fallback_decisions': self.fallback_decisions,
-            'llm_available': self._llm_available,
             'personality': self.personality_name,
         }
 
