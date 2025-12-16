@@ -82,38 +82,65 @@ Choose wisely based on distance, stamina, and your personality. Be strategic!"""
         import re
 
         try:
-            # Try to extract JSON from response
+            # Try multiple JSON extraction patterns
+            # Pattern 1: Simple JSON object
             json_match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group())
-                return LLMResponse(
-                    action=data.get('action', 'IDLE').upper(),
-                    reasoning=data.get('reasoning', ''),
-                    trash_talk=data.get('trash_talk', ''),
-                    confidence=float(data.get('confidence', 0.5)),
-                    raw_response=response
-                )
-        except (json.JSONDecodeError, ValueError) as e:
-            pass
-
-        # Fallback: try to find action in text
-        actions = ['JAB', 'CROSS', 'HOOK', 'UPPERCUT', 'BLOCK', 'DODGE', 'IDLE']
-        for action in actions:
-            if action in response.upper():
+                action = data.get('action', 'IDLE').upper().strip()
+                # Validate action
+                valid_actions = ['JAB', 'CROSS', 'HOOK', 'UPPERCUT', 'BLOCK', 'DODGE', 'IDLE']
+                if action not in valid_actions:
+                    action = 'IDLE'
                 return LLMResponse(
                     action=action,
-                    reasoning="Parsed from text",
-                    trash_talk="",
-                    confidence=0.3,
+                    reasoning=data.get('reasoning', '')[:100],
+                    trash_talk=data.get('trash_talk', '')[:50],
+                    confidence=min(1.0, max(0.0, float(data.get('confidence', 0.5)))),
                     raw_response=response
                 )
 
-        # Default to IDLE
+            # Pattern 2: Try full response as JSON
+            data = json.loads(response.strip())
+            action = data.get('action', 'IDLE').upper().strip()
+            valid_actions = ['JAB', 'CROSS', 'HOOK', 'UPPERCUT', 'BLOCK', 'DODGE', 'IDLE']
+            if action not in valid_actions:
+                action = 'IDLE'
+            return LLMResponse(
+                action=action,
+                reasoning=data.get('reasoning', '')[:100],
+                trash_talk=data.get('trash_talk', '')[:50],
+                confidence=min(1.0, max(0.0, float(data.get('confidence', 0.5)))),
+                raw_response=response
+            )
+
+        except (json.JSONDecodeError, ValueError, TypeError, KeyError) as e:
+            pass
+
+        # Fallback: try to find action keyword in text
+        actions = ['UPPERCUT', 'HOOK', 'CROSS', 'JAB', 'BLOCK', 'DODGE', 'IDLE']  # Order by priority
+        response_upper = response.upper()
+        for action in actions:
+            if action in response_upper:
+                # Try to extract reasoning from response
+                reasoning = response[:80].replace('\n', ' ').strip()
+                return LLMResponse(
+                    action=action,
+                    reasoning=reasoning,
+                    trash_talk="",
+                    confidence=0.5,
+                    raw_response=response
+                )
+
+        # Debug: print raw response when can't parse
+        print(f"[Parser] Could not parse: {response[:100]}...")
+
+        # Default to JAB (more active than IDLE)
         return LLMResponse(
-            action='IDLE',
-            reasoning="Could not parse response",
+            action='JAB',
+            reasoning="Auto-action (parse failed)",
             trash_talk="",
-            confidence=0.1,
+            confidence=0.3,
             raw_response=response,
-            error="Failed to parse LLM response"
+            error="Parse failed - using default"
         )
