@@ -48,33 +48,38 @@ class BaseLLMProvider(ABC):
     def build_prompt(self, game_state: Dict[str, Any],
                      personality: str) -> str:
         """Build prompt untuk LLM"""
-        return f"""You are an AI boxer in a fighting game with personality: {personality}
+        distance = game_state.get('distance', 'medium')
 
-Current Game State:
-- Your Health: {game_state.get('my_health', 100)}%
-- Your Stamina: {game_state.get('my_stamina', 100)}%
-- Opponent Health: {game_state.get('opp_health', 100)}%
-- Opponent Stamina: {game_state.get('opp_stamina', 100)}%
-- Distance: {game_state.get('distance', 'medium')} ({game_state.get('distance_px', 200)}px)
-- Opponent Action: {game_state.get('opp_action', 'idle')}
-- Your Last Action: {game_state.get('my_last_action', 'none')}
-- Combo Count: {game_state.get('combo_count', 0)}
-- Round Time Remaining: {game_state.get('round_time', 180)}s
-- Can Act: {game_state.get('can_act', True)}
+        # Distance-specific advice
+        if distance == 'far':
+            distance_advice = "You are FAR - use JAB to MOVE FORWARD and close distance! Attacks also move you forward."
+        elif distance == 'medium':
+            distance_advice = "MEDIUM range - JAB or CROSS will hit and move you closer."
+        elif distance == 'punch':
+            distance_advice = "PUNCH range - all attacks can hit! Use combos: JAB->CROSS->HOOK"
+        else:  # clinch
+            distance_advice = "CLINCH range - UPPERCUT and HOOK do massive damage here!"
 
-Available Actions:
-- JAB: Quick punch, low damage (8-12), high accuracy (90%), low stamina (8)
-- CROSS: Strong straight, medium damage (18-25), medium accuracy (75%), medium stamina (18)
-- HOOK: Wide swing, high damage (28-38), low accuracy (60%), high stamina (28)
-- UPPERCUT: Rising punch, very high damage (35-45), low accuracy (50%), very high stamina (35)
-- BLOCK: Reduce incoming damage by 70%, costs stamina (12)
-- DODGE: Evade attack and create distance, costs stamina (15)
-- IDLE: Wait and recover stamina
+        return f"""Boxing AI - {personality} style. Pick ONE action.
 
-Respond in this exact JSON format:
-{{"action": "JAB/CROSS/HOOK/UPPERCUT/BLOCK/DODGE/IDLE", "reasoning": "brief tactical reasoning", "trash_talk": "short taunt or comment", "confidence": 0.0-1.0}}
+STATE:
+- My HP: {int(game_state.get('my_health', 100))}% | Stamina: {int(game_state.get('my_stamina', 100))}%
+- Enemy HP: {int(game_state.get('opp_health', 100))}% | Stamina: {int(game_state.get('opp_stamina', 100))}%
+- Distance: {distance} | Enemy doing: {game_state.get('opp_action', 'idle')}
 
-Choose wisely based on distance, stamina, and your personality. Be strategic!"""
+ACTIONS (all attacks MOVE YOU FORWARD):
+- JAB: Fast, 8 dmg, 8 stamina - BEST for closing distance
+- CROSS: Medium, 20 dmg, 18 stamina - Good follow-up after JAB
+- HOOK: Heavy, 32 dmg, 28 stamina - Best at close range
+- UPPERCUT: Massive, 40 dmg, 35 stamina - Best at clinch
+- BLOCK: Reduce damage 70%, 12 stamina - Use vs incoming attack
+- DODGE: Evade attack, 15 stamina - MOVES YOU BACKWARD
+- IDLE: Recover stamina, no movement
+
+TIP: {distance_advice}
+
+Reply ONLY with JSON:
+{{"action":"JAB","reasoning":"why","trash_talk":"taunt","confidence":0.8}}"""
 
     def parse_response(self, response: str) -> LLMResponse:
         """Parse LLM response ke LLMResponse"""
