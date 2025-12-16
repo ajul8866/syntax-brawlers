@@ -1,0 +1,13 @@
+# Syntax Brawlers v2.0 - Dependencies
+
+# Core game engine
+pygame>=2.5.0
+
+# HTTP client for LLM APIs
+httpx>=0.25.0
+
+# Numerical operations (particles, physics, audio generation)
+numpy>=1.24.0
+
+# Type hints support (Python 3.8+)
+typing_extensions>=4.0.0
