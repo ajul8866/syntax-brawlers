@@ -224,6 +224,15 @@ class SoundManager:
             return self.play(sound_name, SoundChannel.VOICE, 1.0)
         return None
 
+    def play_music(self, track_name: str):
+        """Play background music (placeholder - procedural music not implemented)"""
+        # TODO: Implement procedural background music
+        pass
+
+    def play_sfx(self, sound_name: str, volume: float = 1.0) -> Optional[pygame.mixer.Channel]:
+        """Play sound effect"""
+        return self.play(sound_name, SoundChannel.SFX, volume)
+
     def stop(self, sound_name: str, fade_ms: int = 0):
         """Stop specific sound"""
         if sound_name in self._playing:
