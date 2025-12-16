@@ -94,8 +94,18 @@ def main():
     print("Inisialisasi AI dengan LLM...")
     from ai.providers.openrouter import OpenRouterProvider
 
-    # OpenRouter API dengan DeepSeek
-    api_key = os.environ.get('OPENROUTER_API_KEY', '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')
+    # OpenRouter API - MUST set OPENROUTER_API_KEY environment variable
+    api_key = os.environ.get('OPENROUTER_API_KEY', '')
+    if not api_key:
+        print("=" * 60)
+        print("ERROR: OPENROUTER_API_KEY not set!")
+        print("Set environment variable sebelum jalankan:")
+        print("  Windows: set OPENROUTER_API_KEY=sk-or-v1-xxx")
+        print("  Linux:   export OPENROUTER_API_KEY=sk-or-v1-xxx")
+        print("=" * 60)
+    else:
+        print(f"API Key loaded: {api_key[:15]}...{api_key[-4:]}")
+
     llm_provider = OpenRouterProvider(api_key=api_key)
 
     ai1 = AIController(fighter1, llm_provider=llm_provider, personality='aggressive')

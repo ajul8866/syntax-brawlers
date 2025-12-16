@@ -80,6 +80,7 @@ class OpenRouterProvider(BaseLLMProvider):
                          personality: str) -> LLMResponse:
         """Get action dari OpenRouter API"""
         if not self.api_key:
+            print(f"[OpenRouter] ERROR: No API key configured!")
             return LLMResponse(
                 action='IDLE',
                 reasoning="No API key",
@@ -138,13 +139,17 @@ class OpenRouterProvider(BaseLLMProvider):
                         return result
 
                     elif response.status_code == 401:
-                        self.last_error = "Invalid API key"
+                        # Print debug info
+                        error_body = response.text
+                        print(f"[OpenRouter] 401 Error - API Key: {self.api_key[:20]}...{self.api_key[-4:]}")
+                        print(f"[OpenRouter] Response: {error_body}")
+                        self.last_error = f"Auth failed: {error_body}"
                         return LLMResponse(
                             action='IDLE',
                             reasoning="Auth failed",
                             trash_talk="",
                             confidence=0,
-                            error="Invalid API key"
+                            error=f"Auth failed: {error_body}"
                         )
 
                     elif response.status_code == 429:
