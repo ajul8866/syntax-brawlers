@@ -117,30 +117,16 @@ Choose wisely based on distance, stamina, and your personality. Be strategic!"""
         except (json.JSONDecodeError, ValueError, TypeError, KeyError) as e:
             pass
 
-        # Fallback: try to find action keyword in text
-        actions = ['UPPERCUT', 'HOOK', 'CROSS', 'JAB', 'BLOCK', 'DODGE', 'IDLE']  # Order by priority
-        response_upper = response.upper()
-        for action in actions:
-            if action in response_upper:
-                # Try to extract reasoning from response
-                reasoning = response[:80].replace('\n', ' ').strip()
-                return LLMResponse(
-                    action=action,
-                    reasoning=reasoning,
-                    trash_talk="",
-                    confidence=0.5,
-                    raw_response=response
-                )
-
+        # NO FALLBACK - LLM only
         # Debug: print raw response when can't parse
-        print(f"[Parser] Could not parse: {response[:100]}...")
+        print(f"[Parser] LLM response invalid: {response[:150]}...")
 
-        # Default to JAB (more active than IDLE)
+        # Return IDLE with error - NO fallback action
         return LLMResponse(
-            action='JAB',
-            reasoning="Auto-action (parse failed)",
+            action='IDLE',
+            reasoning="LLM response format invalid",
             trash_talk="",
-            confidence=0.3,
+            confidence=0.0,
             raw_response=response,
-            error="Parse failed - using default"
+            error="LLM response could not be parsed"
         )
