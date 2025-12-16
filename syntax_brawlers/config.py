@@ -398,7 +398,7 @@ KO_COUNT = 10  # 10-count for knockdown
 
 LLM_TIMEOUT = 10.0  # seconds
 LLM_MAX_RETRIES = 2
-LLM_DEFAULT_MODEL = "deepseek/deepseek-chat"
+LLM_DEFAULT_MODEL = "z-ai/glm-4.6"
 
 # =============================================================================
 # AUDIO SETTINGS
